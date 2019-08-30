@@ -257,8 +257,8 @@ module Sources
 
       def api_response
         {
-          code: api_client.extended_fetch.code,
-          headers: api_client.extended_fetch.headers.to_h,
+          code: api_client.extended_fetch[:code],
+          headers: api_client.extended_fetch[:headers],
           body: api_client.extended_fetch_json
         }
       end
