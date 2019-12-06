@@ -91,8 +91,16 @@ module Sources
         elsif api_deviation[:isDownloadable]
           api_client.download_url
         else
-          file = api_deviation[:files].find { |data| data[:type] == "fullview" }
-          src = file[:src]
+          media = api_deviation[:media]
+
+          op = media[:types].find { |data| data[:t] == "fullview" }
+
+          if op[:c].present?
+            op = op[:c].gsub('<prettyName>', media[:prettyName])
+            src = media[:baseUri] + '/' + op + '?token=' + media[:token].first
+          else
+            src = media[:baseUri] + '?token=' + media[:token].first
+          end
 
           if deviation_id && deviation_id.to_i <= 790677560 && src =~ /\Ahttps:\/\/images-wixmp-/i
             src = src.gsub(%r!(/f/[a-f0-9-]+/[a-f0-9-]+)!, '/intermediary\1')
