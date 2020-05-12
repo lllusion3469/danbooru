@@ -6,7 +6,7 @@ class PostVersion < ApplicationRecord
   belongs_to_updater counter_cache: "post_update_count"
 
   def self.enabled?
-    Rails.env.test? || Danbooru.config.aws_sqs_archives_url.present?
+    true
   end
 
   def self.database_url
@@ -89,8 +89,12 @@ class PostVersion < ApplicationRecord
           "created_at" => post.created_at.try(:iso8601),
           "tags" => post.tag_string
         }
-        msg = "add post version\n#{json.to_json}"
-        sqs_service.send_message(msg, message_group_id: "post:#{post.id}")
+        if Danbooru.config.aws_sqs_archives_url.present?
+          msg = "add post version\n#{json.to_json}"
+          sqs_service.send_message(msg, message_group_id: "post:#{post.id}")
+        else
+          PostVersion.create_from_json(json.with_indifferent_access)
+        end
       end
     end
   end
@@ -269,6 +273,62 @@ class PostVersion < ApplicationRecord
 
   def self.available_includes
     [:updater, :post]
+  end
+
+  def self.find_previous(post_id, updated_at)
+    where("post_id = ? and updated_at < ?", post_id, updated_at).order("id desc").first
+  end
+
+  def self.calculate_version(post_id, updated_at)
+    1 + where("post_id = ?", post_id).maximum(:version).to_i
+  end
+
+  def self.create_from_json(json)
+    created_at = json["created_at"] ? Time.parse(json["created_at"]) : nil
+    updated_at = json["updated_at"] ? Time.parse(json["updated_at"]) : created_at
+    tags = json["tags"].scan(/\S+/)
+    previous = find_previous(json["post_id"], updated_at)
+    subject = PostVersion.new
+    subject.version = calculate_version(json["post_id"], updated_at)
+
+    if previous && previous.updater_id == json["updater_id"] && updated_at - previous.updated_at < 1.hour
+      subject = previous
+      previous = find_previous(previous.post_id, previous.updated_at)
+    end
+
+    if previous
+      added_tags = tags - previous.tag_array
+      removed_tags = previous.tag_array - tags
+    else
+      added_tags = tags
+      removed_tags = []
+    end
+
+    rating_changed = previous.nil? || json["rating"] != previous.try(:rating)
+    parent_changed = previous.nil? || json["parent_id"] != previous.try(:parent_id)
+    source_changed = previous.nil? || json["source"] != previous.try(:source)
+    attribs = {
+      post_id: json["post_id"],
+      tags: tags.join(" "),
+      added_tags: added_tags,
+      removed_tags: removed_tags,
+      updater_id: json["updater_id"],
+      updater_ip_addr: json["updater_ip_addr"],
+      updated_at: updated_at,
+      rating: json["rating"],
+      rating_changed: rating_changed,
+      parent_id: json["parent_id"],
+      parent_changed: parent_changed,
+      source: json["source"],
+      source_changed: source_changed
+    }
+
+    ActiveRecord::Base.record_timestamps = false
+    subject.attributes = attribs
+    subject.id = json["id"] if json["id"]
+    subject.save
+  ensure
+    ActiveRecord::Base.record_timestamps = true
   end
 
   memoize :previous, :tag_array, :changes, :added_tags_with_fields, :removed_tags_with_fields, :obsolete_removed_tags, :obsolete_added_tags, :unchanged_tags
