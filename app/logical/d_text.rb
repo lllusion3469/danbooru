@@ -210,10 +210,11 @@ class DText
     return "" if html.nil?
     html = Nokogiri::HTML.fragment(html) if html.is_a? String
 
-    dtext = html.children.map do |element|
+    dtext = ""
+    for element in html.children
       block.call(element) if block.present?
 
-      case element.name
+      dtext += case element.name
       when "text"
         element.content.gsub(/(?:\r|\n)+$/, "")
       when "br"
@@ -264,8 +265,8 @@ class DText
         # ignored
       else
         from_html(element, &block)
-      end
-    end.join
+      end.to_s
+    end
 
     dtext
   end
