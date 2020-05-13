@@ -206,8 +206,9 @@ class DText
     text = text.gsub(/\A[[:space:]]+|[[:space:]]+\z/, "")
   end
 
-  def self.from_html(text, inline: false, &block)
-    html = Nokogiri::HTML.fragment(text)
+  def self.from_html(html, inline: false, &block)
+    return "" if html.nil?
+    html = Nokogiri::HTML.fragment(html) if html.is_a? String
 
     dtext = html.children.map do |element|
       block.call(element) if block.present?
@@ -218,27 +219,34 @@ class DText
       when "br"
         "\n"
       when "p", "ul", "ol"
-        from_html(element.inner_html, &block).strip + "\n\n"
+        from_html(element, &block).strip + "\n\n"
       when "blockquote"
-        "[quote]#{from_html(element.inner_html, &block).strip}[/quote]\n\n" if element.inner_html.present?
+        content = from_html(element, &block).strip
+        "[quote]#{content}[/quote]\n\n" if content.present?
       when "small", "sub"
-        "[tn]#{from_html(element.inner_html, &block)}[/tn]" if element.inner_html.present?
+        content = from_html(element, &block)
+        "[tn]#{content}[/tn]" if content.present?
       when "b", "strong"
-        "[b]#{from_html(element.inner_html, &block)}[/b]" if element.inner_html.present?
+        content = from_html(element, &block)
+        "[b]#{content}[/b]" if content.present?
       when "i", "em"
-        "[i]#{from_html(element.inner_html, &block)}[/i]" if element.inner_html.present?
+        content = from_html(element, &block)
+        "[i]#{content}[/i]" if content.present?
       when "u"
-        "[u]#{from_html(element.inner_html, &block)}[/u]" if element.inner_html.present?
+        content = from_html(element, &block)
+        "[u]#{content}[/u]" if content.present?
       when "s", "strike"
-        "[s]#{from_html(element.inner_html, &block)}[/s]" if element.inner_html.present?
+        content = from_html(element, &block)
+        "[s]#{content}[/s]" if content.present?
       when "li"
-        "* #{from_html(element.inner_html, &block)}\n" if element.inner_html.present?
+        content = from_html(element, &block)
+        "* #{content}\n" if content.present?
       when "h1", "h2", "h3", "h4", "h5", "h6"
         hN = element.name
-        title = from_html(element.inner_html, &block)
+        title = from_html(element, &block)
         "#{hN}. #{title}\n\n"
       when "a"
-        title = from_html(element.inner_html, inline: true, &block).strip
+        title = from_html(element, inline: true, &block).strip
         url = element["href"]
         %("#{title}":[#{url}]) if title.present? && url.present?
       when "img"
@@ -255,7 +263,7 @@ class DText
       when "comment"
         # ignored
       else
-        from_html(element.inner_html, &block)
+        from_html(element, &block)
       end
     end.join
 
