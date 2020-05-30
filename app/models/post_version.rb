@@ -5,6 +5,8 @@ class PostVersion < ApplicationRecord
   belongs_to :post
   belongs_to_updater counter_cache: "post_update_count"
 
+  self.record_timestamps = false
+
   def self.enabled?
     true
   end
@@ -323,12 +325,9 @@ class PostVersion < ApplicationRecord
       source_changed: source_changed
     }
 
-    ActiveRecord::Base.record_timestamps = false
     subject.attributes = attribs
     subject.id = json["id"] if json["id"]
     subject.save
-  ensure
-    ActiveRecord::Base.record_timestamps = true
   end
 
   memoize :previous, :tag_array, :changes, :added_tags_with_fields, :removed_tags_with_fields, :obsolete_removed_tags, :obsolete_added_tags, :unchanged_tags

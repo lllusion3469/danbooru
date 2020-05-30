@@ -2,6 +2,8 @@ class PoolVersion < ApplicationRecord
   belongs_to :updater, :class_name => "User"
   belongs_to :pool
 
+  self.record_timestamps = false
+
   def self.enabled?
     true
   end
@@ -224,12 +226,9 @@ class PoolVersion < ApplicationRecord
       category: json["category"]
     }
 
-    ActiveRecord::Base.record_timestamps = false
     subject.attributes = attribs
     subject.id = json["id"] if json["id"]
     subject.save
-  ensure
-    ActiveRecord::Base.record_timestamps = true
   end
 
   def self.available_includes
